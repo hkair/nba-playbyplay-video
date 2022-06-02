@@ -19,6 +19,9 @@ from selenium.common.exceptions import WebDriverException
 import time
 import datetime
 
+from nba_api.stats.endpoints import leaguegamefinder
+import pandas as pd
+
 try:
     # For Python 3.0 and later
     from urllib.request import urlopen
@@ -61,12 +64,14 @@ def extractPlayByPlayVideos(output_dir, GameId, SeasonId, SeasonType):
     req.prepare_url(BASE_URL, params)
 
     print("Request URL: ", req.url)
-    page = requests.get(req.url)
 
     # Selenium
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
     driver.implicitly_wait(10)
     driver.get(req.url)
+
+    time.sleep(5)
+    print("Wait 5 Seconds for loading in driver")
 
     # Click on All in row selector of table
     # <select class="stats-table-pagination__select ng-pristine ng-valid ng-not-empty ng-touched >
@@ -118,9 +123,11 @@ def extractPlayByPlayVideos(output_dir, GameId, SeasonId, SeasonType):
             # If the new video_url is the same as prev url
             # skip video
             if video_url == prev_url:
-                prev_url = video_url
                 skipped_videos.append(video_url)
                 continue
+            
+            # set prev_url to current video_url
+            prev_url = video_url
 
             print("Video URL: ", video_url)
 
@@ -144,20 +151,33 @@ def extractPlayByPlayVideos(output_dir, GameId, SeasonId, SeasonType):
         # move to next option in selector
         option_idx += 1
 
+    driver.close()
+
     end = datetime.datetime.now()
     print("Elapsed Time: ", end-start)
     print("{0} videos downloaded".format(num_of_videos))
     print("Videos Skipped: ", skipped_videos)
 
+
 def main():
+
     # Required Parameters
-    GameId = "0042100307"
     SeasonId = "2021-22"
-    SeasonType="Playoffs"
+    SeasonType = "Playoffs"
+    
+    # Query for games where the Celtics were playing
+    gamefinder = leaguegamefinder.LeagueGameFinder(league_id_nullable='00')
+    # The first DataFrame of those returned is what we want.
+    games = gamefinder.get_data_frames()[0]
+    games_2021 = games[(games["SEASON_ID"] == "12021") | (games["SEASON_ID"] == "22021") | (games["SEASON_ID"] == "32021") | (games["SEASON_ID"] == "42021")]
+    game_2021_ids = games_2021["GAME_ID"].unique()
+    print(game_2021_ids)
 
-    output_dir = "./data/videos/playbyplay-game-videos"
-
-    extractPlayByPlayVideos(output_dir, GameId, SeasonId, SeasonType)
+    for game_id in game_2021_ids[0:2]:
+        output_dir = "./data/videos/playbyplay-game-videos"
+        print(game_id)
+        extractPlayByPlayVideos(output_dir, game_id, SeasonId, SeasonType)
+  
 
 
 if __name__ == "__main__":
